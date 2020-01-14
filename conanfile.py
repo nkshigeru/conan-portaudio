@@ -20,28 +20,22 @@ class ConanRecipe(ConanFile):
         del self.settings.compiler.cppstd
         if self.settings.os == "Windows":
             self.options.remove("fPIC")
+    
+    def requirements(self):
+        if self.settings.os == 'Linux':
+            self.requires('libalsa/1.1.9')
 
     def system_requirements(self):
         if os_info.is_linux:
             if os_info.with_apt:
                 installer = SystemPackageTool()
-                if self.settings.arch == "x86" and tools.detected_architecture() == "x86_64":
-                    arch_suffix = ':i386'
-                    installer.install("g++-multilib")
-                else:
-                    arch_suffix = ''
-                installer.install("%s%s" % ("libasound2-dev", arch_suffix))
-                installer.install("%s%s" % ("libjack-dev", arch_suffix))
+                installer.install("libjack-dev")
             elif os_info.with_yum:
                 installer = SystemPackageTool()
                 if self.settings.arch == "x86" and tools.detected_architecture() == "x86_64":
-                    arch_suffix = '.i686'
                     installer.install("glibmm24.i686")
                     installer.install("glibc-devel.i686")
-                else:
-                    arch_suffix = ''
-                installer.install("%s%s" % ("alsa-lib-devel", arch_suffix))
-                installer.install("%s%s" % ("jack-audio-connection-kit-devel", arch_suffix))
+                installer.install("jack-audio-connection-kit-devel")
 
     def source(self):
         zip_name = 'portaudio_%s' % self.version
@@ -94,7 +88,7 @@ elif xcodebuild -version -sdk macosx10.14 Path >/dev/null 2>&1 ; then
                     if self.settings.os == "Macos" and self.settings.compiler == "apple-clang":
                         command = './configure --disable-mac-universal && make'
                     else:
-                        command = './configure && make'
+                        command = './configure && make lib/libportaudio.la'
                     self.run("cd %s && %s" % (self.sources_folder, command))
             if self.settings.os == "Macos" and self.options.shared:
                 self.run('cd %s/lib/.libs && for filename in *.dylib; do install_name_tool -id $filename $filename; done' % self.sources_folder)
@@ -142,12 +136,12 @@ elif xcodebuild -version -sdk macosx10.14 Path >/dev/null 2>&1 ; then
                 base_name += "_x86" if self.settings.arch == "x86" else "_x64"
 
         elif self.settings.os == "Macos":
-            self.cpp_info.exelinkflags.append("-framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework CoreServices -framework Carbon")
+            self.cpp_info.frameworks.extend(["CoreAudio","AudioToolbox","AudioUnit","CoreServices","Carbon"])
 
         self.cpp_info.libs = [base_name]
 
         if self.settings.os == "Windows" and self.settings.compiler == "gcc" and not self.options.shared:
-            self.cpp_info.libs.append('winmm')
+            self.cpp_info.system_libs.append('winmm')
 
         if self.settings.os == "Linux" and not self.options.shared:
-            self.cpp_info.libs.append('jack asound m pthread')
+            self.cpp_info.system_libs.extend(['jack', 'm', 'pthread'])
