@@ -1,10 +1,8 @@
 import os
 from conans import ConanFile, CMake, AutoToolsBuildEnvironment, tools
-from conans.tools import os_info, SystemPackageTool, download, untargz, replace_in_file, unzip
 
 class ConanRecipe(ConanFile):
     name = "portaudio"
-    version = "v190600.20161030"
     settings = "os", "compiler", "build_type", "arch"
     generators = ["cmake", "txt"]
     sources_folder = "sources"
@@ -41,12 +39,12 @@ class ConanRecipe(ConanFile):
 
     def system_requirements(self):
         if self.settings.os == 'Linux':
-            if os_info.with_apt:
-                installer = SystemPackageTool()
+            if tools.os_info.with_apt:
+                installer = tools.SystemPackageTool()
                 if self.options.with_jack:
                     installer.install("libjack-dev")
-            elif os_info.with_yum:
-                installer = SystemPackageTool()
+            elif tools.os_info.with_yum:
+                installer = tools.SystemPackageTool()
                 if self.settings.arch == "x86" and tools.detected_architecture() == "x86_64":
                     installer.install("glibmm24.i686")
                     installer.install("glibc-devel.i686")
@@ -54,26 +52,12 @@ class ConanRecipe(ConanFile):
                     installer.install("jack-audio-connection-kit-devel")
 
     def source(self):
-        zip_name = 'portaudio_%s' % self.version
-        if self.version == 'master':
-            self.run('mkdir %s' % self.sources_folder)
-            zip_name += '.zip'
-            download('https://app.assembla.com/spaces/portaudio/git/source/master?_format=zip', '%s/%s' % (self.sources_folder, zip_name))
-            unzip('%s/%s' % (self.sources_folder, zip_name), '%s/' % self.sources_folder)
-            os.unlink('%s/%s' % (self.sources_folder, zip_name))
-        else:
-            zip_name += '.tgz'
-            download('http://portaudio.com/archives/pa_stable_%s.tgz' % self.version.replace('.','_'), zip_name)
-            untargz(zip_name)
-            os.unlink(zip_name)
-            os.rename("portaudio", self.sources_folder)
-
-        if self.settings.os != "Windows":
-            self.run("chmod +x ./%s/configure" % self.sources_folder)
+        tools.get(**self.conan_data["sources"][self.version])
+        os.rename("portaudio", self.sources_folder)
 
     def patch_source(self):
         if self.settings.os == "Macos":
-            replace_in_file(os.path.join(self.sources_folder, "configure"), 'mac_sysroot="-isysroot `xcodebuild -version -sdk macosx10.12 Path`"',
+            tools.replace_in_file(os.path.join(self.sources_folder, "configure"), 'mac_sysroot="-isysroot `xcodebuild -version -sdk macosx10.12 Path`"',
 """
 mac_sysroot="-isysroot `xcodebuild -version -sdk macosx10.12 Path`"
 elif xcodebuild -version -sdk macosx10.13 Path >/dev/null 2>&1 ; then
@@ -85,11 +69,11 @@ elif xcodebuild -version -sdk macosx10.14 Path >/dev/null 2>&1 ; then
 
 """
                         )
-            replace_in_file(os.path.join(self.sources_folder, "configure"), "Could not find 10.5 to 10.12 SDK.", "Could not find 10.5 to 10.14 SDK.")
+            tools.replace_in_file(os.path.join(self.sources_folder, "configure"), "Could not find 10.5 to 10.12 SDK.", "Could not find 10.5 to 10.14 SDK.")
         elif self.settings.os == "Windows" and self.settings.compiler == "gcc":
-            replace_in_file(os.path.join(self.sources_folder, "CMakeLists.txt"), 'OPTION(PA_USE_WDMKS "Enable support for WDMKS" ON)', 'OPTION(PA_USE_WDMKS "Enable support for WDMKS" OFF)')
-            replace_in_file(os.path.join(self.sources_folder, "CMakeLists.txt"), 'OPTION(PA_USE_WDMKS_DEVICE_INFO "Use WDM/KS API for device info" ON)', 'OPTION(PA_USE_WDMKS_DEVICE_INFO "Use WDM/KS API for device info" OFF)')
-            replace_in_file(os.path.join(self.sources_folder, "CMakeLists.txt"), 'OPTION(PA_USE_WASAPI "Enable support for WASAPI" ON)', 'OPTION(PA_USE_WASAPI "Enable support for WASAPI" OFF)')
+            tools.replace_in_file(os.path.join(self.sources_folder, "CMakeLists.txt"), 'OPTION(PA_USE_WDMKS "Enable support for WDMKS" ON)', 'OPTION(PA_USE_WDMKS "Enable support for WDMKS" OFF)')
+            tools.replace_in_file(os.path.join(self.sources_folder, "CMakeLists.txt"), 'OPTION(PA_USE_WDMKS_DEVICE_INFO "Use WDM/KS API for device info" ON)', 'OPTION(PA_USE_WDMKS_DEVICE_INFO "Use WDM/KS API for device info" OFF)')
+            tools.replace_in_file(os.path.join(self.sources_folder, "CMakeLists.txt"), 'OPTION(PA_USE_WASAPI "Enable support for WASAPI" ON)', 'OPTION(PA_USE_WASAPI "Enable support for WASAPI" OFF)')
 
 
     def build(self):
