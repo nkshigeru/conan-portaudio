@@ -11,8 +11,18 @@ class ConanRecipe(ConanFile):
     description = "Conan package for the Portaudio library"
     url = "https://github.com/jgsogo/conan-portaudio"
     license = "http://www.portaudio.com/license.html"
-    options = {"shared": [True, False], "fPIC": [True, False]}
-    default_options = {'shared': False, 'fPIC': True}
+    options = {
+        "shared": [True, False],
+        "fPIC": [True, False],
+        "with_alsa":  [True, False],
+        "with_jack":  [True, False]
+    }
+    default_options = {
+        'shared': False,
+        'fPIC': True,
+        "with_alsa":  True,
+        "with_jack":  True
+    }
     exports = ["FindPortaudio.cmake", "CMakeLists.txt"]
 
     def configure(self):
@@ -20,22 +30,28 @@ class ConanRecipe(ConanFile):
         del self.settings.compiler.cppstd
         if self.settings.os == "Windows":
             self.options.remove("fPIC")
+        if self.settings.os != "Linux":
+            self.options.remove("with_alsa")
+            self.options.remove("with_jack")
     
     def requirements(self):
         if self.settings.os == 'Linux':
-            self.requires('libalsa/1.1.9')
+            if self.options.with_alsa:
+                self.requires('libalsa/1.1.9')
 
     def system_requirements(self):
-        if os_info.is_linux:
+        if self.settings.os == 'Linux':
             if os_info.with_apt:
                 installer = SystemPackageTool()
-                installer.install("libjack-dev")
+                if self.options.with_jack:
+                    installer.install("libjack-dev")
             elif os_info.with_yum:
                 installer = SystemPackageTool()
                 if self.settings.arch == "x86" and tools.detected_architecture() == "x86_64":
                     installer.install("glibmm24.i686")
                     installer.install("glibc-devel.i686")
-                installer.install("jack-audio-connection-kit-devel")
+                if self.options.with_jack:
+                    installer.install("jack-audio-connection-kit-devel")
 
     def source(self):
         zip_name = 'portaudio_%s' % self.version
@@ -81,17 +97,22 @@ elif xcodebuild -version -sdk macosx10.14 Path >/dev/null 2>&1 ; then
 
         if self.settings.os == "Linux" or self.settings.os == "Macos":
             env = AutoToolsBuildEnvironment(self)
-            with tools.environment_append(env.vars):
-                env.fpic = self.options.fPIC
-                with tools.environment_append(env.vars):
-                    command = ''
-                    if self.settings.os == "Macos" and self.settings.compiler == "apple-clang":
-                        command = './configure --disable-mac-universal && make'
-                    else:
-                        command = './configure && make lib/libportaudio.la'
-                    self.run("cd %s && %s" % (self.sources_folder, command))
+            env.fpic = self.options.fPIC
+            args = []
+            if self.settings.os == "Macos" and self.settings.compiler == "apple-clang":
+                args.append("--disable-mac-universal")
+            elif self.settings.os == "Linux":
+                args.append("--with-alsa" if self.options.with_alsa else "--without-alsa")
+                args.append("--with-jack" if self.options.with_jack else "--without-jack")
+                if self.options.with_alsa:
+                    env.flags.extend("-I%s" % p for p in self.deps_cpp_info["libalsa"].include_paths) # env.include_paths does not seem to work here
+            env.configure(configure_dir=self.sources_folder, args=args)
+            if self.settings.os == "Macos" and self.settings.compiler == "apple-clang":
+                env.make()
+            else:
+                env.make(target = "lib/libportaudio.la")
             if self.settings.os == "Macos" and self.options.shared:
-                self.run('cd %s/lib/.libs && for filename in *.dylib; do install_name_tool -id $filename $filename; done' % self.sources_folder)
+                self.run('cd lib/.libs && for filename in *.dylib; do install_name_tool -id $filename $filename; done')
         else:
             cmake = CMake(self)
             cmake.definitions["MSVS"] = self.settings.compiler == "Visual Studio"
@@ -119,11 +140,11 @@ elif xcodebuild -version -sdk macosx10.14 Path >/dev/null 2>&1 ; then
         else:
             if self.options.shared:
                 if self.settings.os == "Macos":
-                    self.copy(pattern="*.dylib", dst="lib", src=os.path.join(self.sources_folder, "lib", ".libs"))
+                    self.copy(pattern="*.dylib", dst="lib", src=os.path.join( "lib", ".libs"))
                 else:
-                    self.copy(pattern="*.so*", dst="lib", src=os.path.join(self.sources_folder, "lib", ".libs"))
+                    self.copy(pattern="*.so*", dst="lib", src=os.path.join( "lib", ".libs"))
             else:
-                self.copy("*.a", dst="lib", src=os.path.join(self.sources_folder, "lib", ".libs"))
+                self.copy("*.a", dst="lib", src=os.path.join("lib", ".libs"))
 
 
     def package_info(self):
