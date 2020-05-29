@@ -2,8 +2,9 @@
 #include <stdio.h>
 
 int main() {
-  const PaVersionInfo* v = Pa_GetVersionInfo();
-  printf("PortAudio version %d.%d.%d %s\n", v->versionMajor, v->versionMinor, v->versionSubMinor, v->versionControlRevision);
-  printf("%s\n", v->versionText);
+  int version = Pa_GetVersion();
+  const char* versionText = Pa_GetVersionText();
+  printf("PortAudio version %x\n", version);
+  printf("%s\n", versionText);
   return 0;
 }

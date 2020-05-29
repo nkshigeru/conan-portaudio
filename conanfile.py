@@ -132,10 +132,18 @@ elif xcodebuild -version -sdk macosx10.14 Path >/dev/null 2>&1 ; then
 
 
     def package_info(self):
-        self.cpp_info.libs = tools.collect_libs(self)
+        base_name = "portaudio"
+        if self.settings.os == "Windows":
+            if not self.options.shared:
+                base_name += "_static"
 
-        if self.settings.os == "Macos":
+            if self.settings.compiler == "Visual Studio":
+                base_name += "_x86" if self.settings.arch == "x86" else "_x64"
+
+        elif self.settings.os == "Macos":
             self.cpp_info.frameworks.extend(["CoreAudio","AudioToolbox","AudioUnit","CoreServices","Carbon"])
+
+        self.cpp_info.libs = [base_name]
 
         if self.settings.os == "Windows" and self.settings.compiler == "gcc" and not self.options.shared:
             self.cpp_info.system_libs.append('winmm')
